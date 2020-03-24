@@ -9,6 +9,7 @@ export default Model.extend({
   avatar: attr('string'),
   url: attr('string'),
   kind: attr('string'),
+  has_tokens: attr('boolean'),
 
   stats() {
     return this.store.adapterFor('user').stats(this.id);

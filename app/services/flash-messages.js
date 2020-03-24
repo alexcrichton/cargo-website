@@ -4,8 +4,9 @@ export default class FlashMessagesService extends Service {
   message = null;
   _nextMessage = null;
 
-  show(message) {
+  show(message, options = { type: 'warning' }) {
     this.set('message', message);
+    this.set('options', options);
   }
 
   queue(message) {

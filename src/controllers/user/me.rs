@@ -6,9 +6,9 @@ use crate::controllers::helpers::*;
 use crate::email;
 
 use crate::models::{
-    CrateOwner, Email, Follow, NewEmail, OwnerKind, User, Version, VersionOwnerAction,
+    ApiToken, CrateOwner, Email, Follow, NewEmail, OwnerKind, User, Version, VersionOwnerAction,
 };
-use crate::schema::{crate_owners, crates, emails, follows, users, versions};
+use crate::schema::{api_tokens, crate_owners, crates, emails, follows, users, versions};
 use crate::views::{EncodableMe, EncodableVersion, OwnedCrate};
 
 /// Handles the `GET /me` route.
@@ -27,6 +27,11 @@ pub fn me(req: &mut dyn Request) -> AppResult<Response> {
         ))
         .first::<(User, Option<bool>, Option<String>, bool)>(&*conn)?;
 
+    let tokens: Vec<ApiToken> = ApiToken::belonging_to(req.user()?)
+        .filter(api_tokens::revoked.eq(false))
+        .load(&*conn)?;
+    let has_tokens = !tokens.is_empty();
+
     let owned_crates = CrateOwner::by_owner_kind(OwnerKind::User)
         .inner_join(crates::table)
         .filter(crate_owners::owner_id.eq(user_id))
@@ -44,7 +49,7 @@ pub fn me(req: &mut dyn Request) -> AppResult<Response> {
     let verified = verified.unwrap_or(false);
     let verification_sent = verified || verification_sent;
     Ok(req.json(&EncodableMe {
-        user: user.encodable_private(email, verified, verification_sent),
+        user: user.encodable_private(email, verified, verification_sent, has_tokens),
         owned_crates,
     }))
 }

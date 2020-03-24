@@ -1,16 +1,29 @@
-import { Factory } from 'ember-cli-mirage';
-import { dasherize } from '@ember/string';
+import { Factory, trait } from 'ember-cli-mirage';
+import faker from 'faker';
 
 export default Factory.extend({
-  name: i => `User ${i + 1}`,
-
+  email_verified: false,
+  email_verification_sent: true,
+  name() {
+    return faker.name.findName();
+  },
   login() {
-    return dasherize(this.name);
+    return faker.internet.userName();
   },
-
+  avatar() {
+    return faker.image.imageUrl();
+  },
   url() {
-    return `https://github.com/${this.login}`;
+    return faker.internet.url();
   },
+  kind: 'user',
+  has_tokens: false,
 
-  avatar: 'https://avatars1.githubusercontent.com/u/14631425?v=4',
+  withVerifiedEmail: trait({
+    email_verified: true,
+  }),
+
+  withTokens: trait({
+    has_tokens: true,
+  }),
 });
