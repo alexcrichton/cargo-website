@@ -1,45 +1,90 @@
 use crate::{util::RequestHelper, TestApp};
 
 use crate::util::encode_session_header;
+use cargo_registry::controllers::util::auth_cookie;
 use conduit::{header, Handler, HandlerResult, Method, StatusCode};
 use conduit_test::MockRequest;
+use serde_json::Value;
 
 static URL: &str = "/api/v1/me/updates";
-static MUST_LOGIN: &[u8] =
-    b"{\"errors\":[{\"detail\":\"must be logged in to perform that action\"}]}";
 static INTERNAL_ERROR_NO_USER: &str =
-    "user_id from cookie or token not found in database caused by NotFound";
+    "user_id from cookie not found in database caused by NotFound";
 
 fn call(app: &TestApp, mut request: MockRequest) -> HandlerResult {
     app.as_middleware().call(&mut request)
 }
 
-fn into_parts(response: HandlerResult) -> (StatusCode, std::borrow::Cow<'static, [u8]>) {
-    use conduit_test::ResponseExt;
+#[test]
+fn session_user() {
+    let token = "some-random-token";
 
-    let response = response.unwrap();
-    (response.status(), response.into_cow())
+    let (app, _) = TestApp::init().empty();
+    let session_user = app.db_new_user("user1").with_session(token);
+    let request = session_user.request_builder(Method::GET, URL);
+
+    let response = session_user.run::<Value>(request);
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[test]
+fn cookie_user() {
+    let (_app, _, cookie_user) = TestApp::init().with_user();
+    let request = cookie_user.request_builder(Method::GET, URL);
+
+    let response = cookie_user.run::<Value>(request);
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[test]
+fn token_user() {
+    let (_app, _, _, token_user) = TestApp::init().with_token();
+    let request = token_user.request_builder(Method::GET, URL);
+
+    let response = token_user.run::<Value>(request);
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[test]
 fn anonymous_user_unauthorized() {
-    let (app, anon) = TestApp::init().empty();
+    let (_app, anon) = TestApp::init().empty();
     let request = anon.request_builder(Method::GET, URL);
 
-    let (status, body) = into_parts(call(&app, request));
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(body, MUST_LOGIN);
+    let response = anon.run::<Value>(request);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        response.json(),
+        json!({ "errors": [{ "detail": "must be logged in to perform that action" }] })
+    );
+}
+
+#[test]
+fn session_auth_cannot_find_token() {
+    let cookie = auth_cookie("some-unknown-token", false).to_string();
+
+    let (_app, anon) = TestApp::init().empty();
+    let mut request = anon.request_builder(Method::GET, URL);
+    request.header(header::COOKIE, &cookie);
+
+    let response = anon.run::<Value>(request);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        response.json(),
+        json!({ "errors": [{ "detail": "must be logged in to perform that action" }] })
+    );
 }
 
 #[test]
 fn token_auth_cannot_find_token() {
-    let (app, anon) = TestApp::init().empty();
+    let (_app, anon) = TestApp::init().empty();
     let mut request = anon.request_builder(Method::GET, URL);
     request.header(header::AUTHORIZATION, "cio1tkfake-token");
 
-    let (status, body) = into_parts(call(&app, request));
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(body, MUST_LOGIN);
+    let response = anon.run::<Value>(request);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        response.json(),
+        json!({ "errors": [{ "detail": "must be logged in to perform that action" }] })
+    );
 }
 
 // Ensure that an unexpected authentication error is available for logging.  The user would see
