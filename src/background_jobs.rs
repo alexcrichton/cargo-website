@@ -6,6 +6,7 @@ use diesel::r2d2::PoolError;
 use swirl::PerformError;
 
 use crate::db::{DieselPool, DieselPooledConn};
+use crate::email::Emails;
 use crate::git::Repository;
 use crate::uploaders::Uploader;
 
@@ -26,6 +27,7 @@ pub struct Environment {
     index: Arc<Mutex<Repository>>,
     pub uploader: Uploader,
     http_client: AssertUnwindSafe<Client>,
+    pub emails: Arc<Emails>,
 }
 
 impl Clone for Environment {
@@ -34,24 +36,32 @@ impl Clone for Environment {
             index: self.index.clone(),
             uploader: self.uploader.clone(),
             http_client: AssertUnwindSafe(self.http_client.0.clone()),
+            emails: self.emails.clone(),
         }
     }
 }
 
 impl Environment {
-    pub fn new(index: Repository, uploader: Uploader, http_client: Client) -> Self {
-        Self::new_shared(Arc::new(Mutex::new(index)), uploader, http_client)
+    pub fn new(index: Repository, uploader: Uploader, http_client: Client, emails: Emails) -> Self {
+        Self::new_shared(
+            Arc::new(Mutex::new(index)),
+            uploader,
+            http_client,
+            Arc::new(emails),
+        )
     }
 
     pub fn new_shared(
         index: Arc<Mutex<Repository>>,
         uploader: Uploader,
         http_client: Client,
+        emails: Arc<Emails>,
     ) -> Self {
         Self {
             index,
             uploader,
             http_client: AssertUnwindSafe(http_client),
+            emails,
         }
     }
 
