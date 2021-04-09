@@ -37,9 +37,9 @@
 
     {{#if (or (not @dependency.default_features) @dependency.features)}}
       <div local-class="features" data-test-features>
-        {{#if (not @dependency.default_features)}}
+        {{#unless @dependency.default_features}}
         default-features=false
-        {{/if}}
+        {{/unless}}
         {{#if @dependency.features}}
         features={{@dependency.features}}
         {{/if}}
